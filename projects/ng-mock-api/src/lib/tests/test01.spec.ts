@@ -5,7 +5,7 @@ import { MockApi, MockGet, MockPathParam, MockQueryParam } from "../ng-mock.deco
 import { NgMockApiInterceptor } from "../ng-mock.interceptor";
 import { firstValueFrom } from 'rxjs';
 
-@Injectable({providedIn: 'root'})
+@Injectable({ providedIn: 'root' })
 @MockApi('/api/test/:id')
 export class TestMockApi {
 
@@ -13,11 +13,8 @@ export class TestMockApi {
 
     @MockGet('/all')
     getAll(
-        @MockPathParam('id', numberAttribute) id: number, 
-        @MockQueryParam('qid', numberAttribute) qid: number) {
-
-        console.log(id)
-        console.log(qid)
+        @MockPathParam('id', numberAttribute) id: number,
+        @MockQueryParam('qid', { transform: numberAttribute }) qid: number) {
 
     }
 }
@@ -27,26 +24,22 @@ describe('TestMockApi', () => {
     let httpClient: HttpClient;
     beforeEach(async () => {
         TestBed.configureTestingModule({
-            
+
             providers: [
                 provideHttpClient(),
-                {provide: HTTP_INTERCEPTORS, useClass: NgMockApiInterceptor, multi: true}
+                { provide: HTTP_INTERCEPTORS, useClass: NgMockApiInterceptor, multi: true }
             ]
-          });
-      
-          
-          httpClient = TestBed.inject(HttpClient);
-          
+        });
+
+
+        httpClient = TestBed.inject(HttpClient);
+
     });
-  
+
     it('should create the app', async () => {
-        
-        const get = httpClient.get('/api/test/0123456/all', {params: {qid: 45678}})
+        const get = httpClient.get('/api/test/0123456/all', { params: { qid: 45678 } })
         const result = await firstValueFrom(get)
         console.log(result)
-    });  
+    });
 
-    
-   
-  });
-  
+});
