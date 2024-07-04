@@ -10,7 +10,7 @@ import { MockServerException } from './ng-mock.server-exception';
 export class NgMockApiInterceptor implements HttpInterceptor {
 
     intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-        return matchApiWithDecorators(req, next.handle)
+        return matchReqUrlWithMockApi(req, next.handle)
     }
 
 }
@@ -24,16 +24,26 @@ export function provideMockApi() {
 }
 
 export function mockApiInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn): Observable<HttpEvent<unknown>> {
-    return matchApiWithDecorators(req, next)
+    return matchReqUrlWithMockApi(req, next)
 }
 
-function matchApiWithDecorators(req: HttpRequest<unknown>, next: HttpHandlerFn) {
+function matchReqUrlWithMockApi(req: HttpRequest<unknown>, next: HttpHandlerFn) {
 
-    const methods = methodPool.filter(mp => req.url.startsWith(mp.rootPath!) && mp.method === req.method)
+    let foundMethod = matchUrlToMethod(req);
+    let response: Observable<any> | undefined;
+
+    if (foundMethod) {
+        const fnParams = getTargetParams(foundMethod, req);
+        response = callTargetFn(foundMethod, fnParams)
+    }
+
+    return response ?? next(req)
+}
+
+function matchUrlToMethod(req: HttpRequest<any>) {
 
     let foundMethod: MethodPoolType | null = null;
-    let status = 200
-    let response: Observable<any> | undefined;
+    const methods = methodPool.filter(mp => req.url.startsWith(mp.rootPath!) && mp.method === req.method)
 
     for (const method of methods) {
 
@@ -47,93 +57,99 @@ function matchApiWithDecorators(req: HttpRequest<unknown>, next: HttpHandlerFn) 
 
         const hasReqQParams = req.params.keys().length > 0
 
-        const qparamSep = req.params.keys().reduce((acc, paramName) => {
-            const qParam = allQueryParams.find(x => x.name === paramName)
-            if (qParam?.optional) {
-                acc.optional.push(paramName)
-            } else {
-                acc.required.push(paramName)
-            }
-            return acc
-        }, { required: [] as string[], optional: [] as string[] })
+        const qparamSep = req.params.keys()
+            .reduce(
+                (acc, paramName) => {
+                    const qParam = allQueryParams.find(x => x.name === paramName)
+                    if (qParam?.optional) {
+                        acc.optional.push(paramName)
+                    } else {
+                        acc.required.push(paramName)
+                    }
+                    return acc
+                },
+                { required: [] as string[], optional: [] as string[] }
+            )
 
 
         const rqsameLength = requiredQueryParams.length === qparamSep.required.length
-        const isRQuery = rqsameLength && qparamSep.required.every(qname => requiredQueryParams.find(x => x.name === qname))
+        const isRequestQueryMatching = rqsameLength && qparamSep.required.every(qname => requiredQueryParams.find(x => x.name === qname))
 
         const hasOptionalQuery = optionalQueryParams.length > 0
         const isOQuery = hasOptionalQuery && optionalQueryParams.some(q => qparamSep.optional.find(x => x === q.name))
 
         const sameLength = pathParams.length === method.keys?.length
-        const isPath = sameLength && pathParams.every(x => method.keys?.find(k => k.name === x.name))
+        const isPathMatching = sameLength && pathParams.every(x => method.keys?.find(k => k.name === x.name))
 
-        if (isPath && isRQuery) {
+        if (isPathMatching && isRequestQueryMatching) {
             foundMethod = method
             break;
         }
     }
 
-    if (foundMethod) {
+    return foundMethod
+}
 
-        status = foundMethod.statusCode
+function getTargetParams(method: MethodPoolType, req: HttpRequest<any>) {
+    const pathKeys = method.regexp?.exec(req.url)
+    const fnParams: any[] = []
+    const paramsMetadata: ParamMetdata[] = Reflect.getMetadata(PARAMS_METADATA_KEY, method.target.constructor, method.propertyKey)
 
-        const pathKeys = foundMethod.regexp?.exec(req.url)
-        const fnParams: any[] = []
-        const paramsMetadata: ParamMetdata[] = Reflect.getMetadata(PARAMS_METADATA_KEY, foundMethod.target.constructor, foundMethod.propertyKey)
-
-        paramsMetadata.forEach(arg => {
-            let value;
-            switch (arg.paramType) {
-                case 'BODY':
-                    value = req.body;
-                    break;
-                case 'PATH':
-                    const keyIndex = foundMethod.keys?.findIndex(x => x.name === arg.name)
-                    if (pathKeys && keyIndex !== -1) {
-                        const offsetIndex = keyIndex + 1
-                        value = pathKeys[offsetIndex];
-                    }
-                    break;
-                case 'QUERY':
-                    value = req.params.get(arg.name)
-                    break;
-            }
-            value = arg.transform ? arg.transform(value) : value
-            fnParams[arg.index] = value
-        })
-
-
-        let instance: any = foundMethod.target;
-
-        try {
-            instance = inject(foundMethod.classTarget)
-        } catch { }
-
-        let result: any;
-
-        let statusText = ''
-        try {
-            result = instance[foundMethod.propertyKey](...fnParams)
-        } catch (e) {
-            if (e instanceof MockServerException) {
-                status = e.statusCode
-                statusText = e.message
-            }
+    paramsMetadata.forEach(arg => {
+        let value;
+        switch (arg.paramType) {
+            case 'BODY':
+                value = req.body;
+                break;
+            case 'PATH':
+                const keyIndex = method.keys?.findIndex(x => x.name === arg.name)
+                if (pathKeys && keyIndex !== -1) {
+                    const offsetIndex = keyIndex + 1
+                    value = pathKeys[offsetIndex];
+                }
+                break;
+            case 'QUERY':
+                value = req.params.get(arg.name)
+                break;
         }
+        value = arg.transform ? arg.transform(value) : value
+        fnParams[arg.index] = value
+    })
 
-        const responseObs = result && result['then'] && typeof result['then'] === 'function'
-            ? from(result)
-            : of(result)
+    return fnParams;
+}
 
-        response = responseObs.pipe(map(body => {
-            if (status < 400) {
-                new HttpResponse({ body, status })
-            } else {
-                throw new HttpErrorResponse({ status, statusText })
-            }
-        }))
+function callTargetFn(method: MethodPoolType, fnParams: any[]) {
+    let instance: any = method.target;
+    let status = method.statusCode;
 
+    try {
+        instance = inject(method.classTarget)
+    } catch { }
+
+    let result: any;
+
+    let statusText = ''
+    try {
+        result = instance[method.propertyKey](...fnParams)
+    } catch (e) {
+        if (e instanceof MockServerException) {
+            status = e.statusCode
+            statusText = e.message
+        }
     }
 
-    return response ?? next(req)
+    const responseObs = result && result['then'] && typeof result['then'] === 'function'
+        ? from(result)
+        : of(result)
+
+    const response = responseObs.pipe(map(body => {
+        if (status < 400) {
+            new HttpResponse({ body, status })
+        } else {
+            throw new HttpErrorResponse({ status, statusText })
+        }
+    }))
+
+    return response
 }
