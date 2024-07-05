@@ -18,7 +18,7 @@ export type MockParamOptions = {
     optional?: boolean
 }
 
-export const PARAMS_METADATA_KEY = 'ngMockParamsMetadataKey__'
+export const PARAMS_METADATA_KEY = 'ngMockApiParamsMetadataKey__'
 
 export function MockApi(path: string): ClassDecorator {
     return (target: any) => {
@@ -84,9 +84,3 @@ export const MockPost = (path: string, status = 201) => createHttpMethod("POST",
 export const MockPut = (path: string, status = 200) => createHttpMethod("PUT", path, status)
 export const MockPatch = (path: string, status = 200) => createHttpMethod("PATCH", path, status)
 export const MockDelete = (path: string, status = 204) => createHttpMethod("DELETE", path, status)
-
-// export const MockHttpReq = (): ParameterDecorator => {
-//     return (target: any, propertyKey: any, index: number) => {
-
-//     }
-// };

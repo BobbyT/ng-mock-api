@@ -1,11 +1,10 @@
-import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http'
+import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, makeEnvironmentProviders } from '@angular/core';
-import { Observable, first, firstValueFrom, from, map, of, tap } from 'rxjs';
+import { match } from 'path-to-regexp';
+import { Observable, first, from, map, of } from 'rxjs';
 import { MethodPoolType, MockHttpRequest, methodPool } from './helpers';
-import { MockApi, ParamMetdata, PARAMS_METADATA_KEY } from './ng-mock.decorator';
-import { MockUserBackendApi } from '../../../test-app/src/app/mock-api';
+import { PARAMS_METADATA_KEY, ParamMetdata } from './ng-mock.decorator';
 import { MockServerException } from './ng-mock.server-exception';
-import { match, pathToRegexp } from 'path-to-regexp';
 
 @Injectable()
 export class NgMockApiInterceptor implements HttpInterceptor {
@@ -13,7 +12,6 @@ export class NgMockApiInterceptor implements HttpInterceptor {
     intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
         return matchReqUrlWithMockApi(req, next.handle)
     }
-
 }
 
 export function provideMockApi() {
@@ -32,8 +30,6 @@ function matchReqUrlWithMockApi(req: HttpRequest<unknown>, next: HttpHandlerFn) 
 
     let response: Observable<any> | undefined;
 
-    // console.log(methodPool)
-
     let { foundMethod, pathParams } = matchUrlToMethod(req);
 
     if (foundMethod) {
@@ -41,7 +37,6 @@ function matchReqUrlWithMockApi(req: HttpRequest<unknown>, next: HttpHandlerFn) 
         response = callTargetFn(foundMethod, fnParams)
     }
 
-    console.log(response)
     return response ?? next(req)
 }
 
@@ -54,7 +49,6 @@ function matchUrlToMethod(req: HttpRequest<any>) {
     for (const method of methods) {
         const matchUrl = match(method.path)
         const isMatch = matchUrl(req.url)
-        console.log({ isMatch }, req.url, method.path)
 
         if (isMatch) {
             foundMethod = method
@@ -119,14 +113,14 @@ function callTargetFn(method: MethodPoolType, fnParams: any[]) {
     }
 
     const responseObs = result && result['then'] && typeof result['then'] === 'function'
-        ? from(result).pipe(first())
+        ? from(result)
         : of(result)
 
     const response = responseObs
         .pipe(
             map(body => {
                 if (status < 400) {
-                    new HttpResponse({ body, status })
+                    return new HttpResponse({ body, status })
                 } else {
                     throw new HttpErrorResponse({ status, statusText })
                 }
