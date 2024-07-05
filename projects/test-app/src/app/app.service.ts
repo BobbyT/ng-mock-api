@@ -22,6 +22,10 @@ export class AppService {
         return this.httpClient.get(`/api/features/${id}`)
     }
 
+    getFeaturesDetails(id: number) {
+        return this.httpClient.get(`/api/features/${id}/details`)
+    }
+
     getRights() {
         return this.httpClient.get(`/api/rights`)
     }

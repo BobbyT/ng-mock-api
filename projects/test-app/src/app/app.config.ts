@@ -8,7 +8,7 @@ import './mock-api'
 export const appConfig: ApplicationConfig = {
   providers: [
 
-    provideMockApi(),
+    // provideMockApi(),
     provideHttpClient(withInterceptors([mockApiInterceptor])),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes)],

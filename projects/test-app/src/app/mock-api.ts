@@ -1,8 +1,9 @@
 import { Injectable, booleanAttribute, inject, numberAttribute } from "@angular/core";
-import { MockApi, MockGet, MockPathParam, MockQueryParam } from "../../../ng-mock-api/src/public-api";
+import { MockApi, MockGet, MockHttpReq, MockPathParam, MockQueryParam } from "../../../ng-mock-api/src/public-api";
 import { HttpClient } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
 import { MockServerException } from "../../../ng-mock-api/src/lib/ng-mock.server-exception";
+import { MockHttpRequest } from "../../../ng-mock-api/src/lib/helpers";
 
 
 // injected instance call
@@ -13,15 +14,18 @@ export class MockUserBackendApi {
     httpClient = inject(HttpClient)
 
     @MockGet('')
-    getAll(@MockQueryParam('filter', { optional: true }) filter: string) {
+    getAll(req: MockHttpRequest) {
+        const filter = req.params.get('filter')
         return [100, 200, 300, filter]
     }
 
     @MockGet(':id')
     async getUserById(
-        @MockPathParam('id', numberAttribute) id: number,
-        @MockQueryParam('features', { transform: booleanAttribute }) getFeatures: boolean) {
-
+        // @MockPathParam('id', numberAttribute) id: number,
+        // @MockQueryParam('features', { transform: booleanAttribute }) getFeatures: boolean
+        @MockHttpReq() req: MockHttpRequest
+    ) {
+        const id = req.path['id'];
         const features = await firstValueFrom(this.httpClient.get(`/api/features/${id}`))
 
         return {
@@ -40,6 +44,11 @@ export class MockFeatureBackendApi {
     @MockGet(':uid')
     getFeaturesForUser(@MockPathParam('uid', numberAttribute) uid: number) {
         return [1, 2, 3, 4]
+    }
+
+    @MockGet(':uid/details')
+    getFeaturesForUserDetails(@MockPathParam('uid', numberAttribute) uid: number) {
+        return ["details"]
     }
 }
 

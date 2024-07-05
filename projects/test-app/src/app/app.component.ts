@@ -14,9 +14,9 @@ export class AppComponent {
   title = 'test-app';
 
   constructor(private appService: AppService) {
-    // this.appService.getUsers('asf').subscribe(console.log)
-    // this.appService.getUsers().subscribe(console.log)
-    // this.appService.getUser(100, true).subscribe(console.log)
+    this.appService.getUsers('asf').subscribe(console.log)
+    this.appService.getUsers().subscribe(console.log)
+    this.appService.getUser(100, true).subscribe(console.log)
     this.appService.getRights().subscribe({
       next: (value) => {
         console.log('received value', value)
@@ -25,6 +25,8 @@ export class AppComponent {
         console.log('received error', err)
       }
     })
+
+    this.appService.getFeaturesDetails(12).subscribe(console.log)
 
   }
 }

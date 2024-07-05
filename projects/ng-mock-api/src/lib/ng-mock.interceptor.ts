@@ -1,10 +1,11 @@
 import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http'
 import { Injectable, inject, makeEnvironmentProviders } from '@angular/core';
-import { Observable, firstValueFrom, from, map, of, tap } from 'rxjs';
-import { MethodPoolType, methodPool } from './helpers';
+import { Observable, first, firstValueFrom, from, map, of, tap } from 'rxjs';
+import { MethodPoolType, MockHttpRequest, methodPool } from './helpers';
 import { MockApi, ParamMetdata, PARAMS_METADATA_KEY } from './ng-mock.decorator';
 import { MockUserBackendApi } from '../../../test-app/src/app/mock-api';
 import { MockServerException } from './ng-mock.server-exception';
+import { match, pathToRegexp } from 'path-to-regexp';
 
 @Injectable()
 export class NgMockApiInterceptor implements HttpInterceptor {
@@ -29,69 +30,44 @@ export function mockApiInterceptor(req: HttpRequest<unknown>, next: HttpHandlerF
 
 function matchReqUrlWithMockApi(req: HttpRequest<unknown>, next: HttpHandlerFn) {
 
-    let foundMethod = matchUrlToMethod(req);
     let response: Observable<any> | undefined;
 
+    // console.log(methodPool)
+
+    let { foundMethod, pathParams } = matchUrlToMethod(req);
+
     if (foundMethod) {
-        const fnParams = getTargetParams(foundMethod, req);
+        const fnParams = getTargetParams(foundMethod, req, pathParams);
         response = callTargetFn(foundMethod, fnParams)
     }
 
+    console.log(response)
     return response ?? next(req)
 }
 
 function matchUrlToMethod(req: HttpRequest<any>) {
 
     let foundMethod: MethodPoolType | null = null;
-    const methods = methodPool.filter(mp => req.url.startsWith(mp.rootPath!) && mp.method === req.method)
+    const methods = methodPool.filter(mp => mp.method === req.method)
+    let pathParams: any = {}
 
     for (const method of methods) {
+        const matchUrl = match(method.path)
+        const isMatch = matchUrl(req.url)
+        console.log({ isMatch }, req.url, method.path)
 
-        const paramsMetadata: ParamMetdata[] = Reflect.getMetadata(PARAMS_METADATA_KEY, method.target.constructor, method.propertyKey)
-
-        const bodyParams = paramsMetadata.filter(x => x.paramType === 'BODY')
-        const pathParams = paramsMetadata.filter(x => x.paramType === 'PATH')
-        const requiredQueryParams = paramsMetadata.filter(x => x.paramType === 'QUERY' && x.optional === false)
-        const optionalQueryParams = paramsMetadata.filter(x => x.paramType === 'QUERY' && x.optional)
-        const allQueryParams = paramsMetadata.filter(x => x.paramType === 'QUERY')
-
-        const hasReqQParams = req.params.keys().length > 0
-
-        const qparamSep = req.params.keys()
-            .reduce(
-                (acc, paramName) => {
-                    const qParam = allQueryParams.find(x => x.name === paramName)
-                    if (qParam?.optional) {
-                        acc.optional.push(paramName)
-                    } else {
-                        acc.required.push(paramName)
-                    }
-                    return acc
-                },
-                { required: [] as string[], optional: [] as string[] }
-            )
-
-
-        const rqsameLength = requiredQueryParams.length === qparamSep.required.length
-        const isRequestQueryMatching = rqsameLength && qparamSep.required.every(qname => requiredQueryParams.find(x => x.name === qname))
-
-        const hasOptionalQuery = optionalQueryParams.length > 0
-        const isOQuery = hasOptionalQuery && optionalQueryParams.some(q => qparamSep.optional.find(x => x === q.name))
-
-        const sameLength = pathParams.length === method.keys?.length
-        const isPathMatching = sameLength && pathParams.every(x => method.keys?.find(k => k.name === x.name))
-
-        if (isPathMatching && isRequestQueryMatching) {
+        if (isMatch) {
             foundMethod = method
+            pathParams = isMatch.params
             break;
         }
     }
 
-    return foundMethod
+    return { foundMethod, pathParams }
 }
 
-function getTargetParams(method: MethodPoolType, req: HttpRequest<any>) {
-    const pathKeys = method.regexp?.exec(req.url)
+function getTargetParams(method: MethodPoolType, req: HttpRequest<any>, pathParams: Record<string, string>) {
+    const pathKeys = method.regexp.exec(req.url)
     const fnParams: any[] = []
     const paramsMetadata: ParamMetdata[] = Reflect.getMetadata(PARAMS_METADATA_KEY, method.target.constructor, method.propertyKey)
 
@@ -102,7 +78,7 @@ function getTargetParams(method: MethodPoolType, req: HttpRequest<any>) {
                 value = req.body;
                 break;
             case 'PATH':
-                const keyIndex = method.keys?.findIndex(x => x.name === arg.name)
+                const keyIndex = method.keys.findIndex(x => x.name === arg.name)
                 if (pathKeys && keyIndex !== -1) {
                     const offsetIndex = keyIndex + 1
                     value = pathKeys[offsetIndex];
@@ -110,6 +86,9 @@ function getTargetParams(method: MethodPoolType, req: HttpRequest<any>) {
                 break;
             case 'QUERY':
                 value = req.params.get(arg.name)
+                break;
+            case 'REQUEST':
+                value = new MockHttpRequest(req, pathParams)
                 break;
         }
         value = arg.transform ? arg.transform(value) : value
@@ -140,16 +119,19 @@ function callTargetFn(method: MethodPoolType, fnParams: any[]) {
     }
 
     const responseObs = result && result['then'] && typeof result['then'] === 'function'
-        ? from(result)
+        ? from(result).pipe(first())
         : of(result)
 
-    const response = responseObs.pipe(map(body => {
-        if (status < 400) {
-            new HttpResponse({ body, status })
-        } else {
-            throw new HttpErrorResponse({ status, statusText })
-        }
-    }))
+    const response = responseObs
+        .pipe(
+            map(body => {
+                if (status < 400) {
+                    new HttpResponse({ body, status })
+                } else {
+                    throw new HttpErrorResponse({ status, statusText })
+                }
+            })
+        )
 
     return response
 }
