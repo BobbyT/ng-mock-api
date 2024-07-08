@@ -1,9 +1,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, inject, numberAttribute } from "@angular/core";
 import { firstValueFrom } from "rxjs";
-import { MockHttpRequest } from "../../../ng-mock-api/src/lib/helpers";
-import { MockServerException } from "../../../ng-mock-api/src/lib/ng-mock.server-exception";
-import { MockApi, MockGet, MockHttpReq, MockPathParam } from "../../../ng-mock-api/src/public-api";
+import { MockApi, MockHttpRequest, MockGet, MockHttpReq, MockPathParam, MockServerException } from "ng-mock-api";
 
 
 // injected instance call

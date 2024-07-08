@@ -1,10 +1,11 @@
 import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, makeEnvironmentProviders } from '@angular/core';
 import { match } from 'path-to-regexp';
-import { Observable, first, from, map, of } from 'rxjs';
-import { MethodPoolType, MockHttpRequest, methodPool } from './helpers';
+import { Observable, from, map, of } from 'rxjs';
+import { MethodPoolType, methodPool } from './helpers';
 import { PARAMS_METADATA_KEY, ParamMetdata } from './ng-mock.decorator';
 import { MockServerException } from './ng-mock.server-exception';
+import { MockHttpRequest } from './ng-mock.http-request';
 
 @Injectable()
 export class NgMockApiInterceptor implements HttpInterceptor {
@@ -112,9 +113,11 @@ function callTargetFn(method: MethodPoolType, fnParams: any[]) {
         }
     }
 
-    const responseObs = result && result['then'] && typeof result['then'] === 'function'
+    const responseObs = result instanceof Promise
         ? from(result)
-        : of(result)
+        : result instanceof Observable
+            ? result
+            : of(result)
 
     const response = responseObs
         .pipe(

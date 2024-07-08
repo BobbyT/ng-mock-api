@@ -76,7 +76,7 @@ function createHttpParam(paramType: MockHttpParamType, name: string, options?: M
 
 export const MockPathParam = (name: string, transform?: (value: any) => any) => createHttpParam('PATH', name, { transform })
 export const MockQueryParam = (name: string, options?: MockParamOptions) => createHttpParam('QUERY', name, options)
-export const MockBodyParam = (name: string) => createHttpParam('BODY', name)
+export const MockBodyParam = () => createHttpParam('BODY', 'body')
 export const MockHttpReq = () => createHttpParam('REQUEST', '')
 
 export const MockGet = (path: string, status = 200) => createHttpMethod("GET", path, status)

@@ -11,6 +11,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test ng-mock-api",
+    "test-headless": "ng test ng-mock-api --browsers ChromeHeadless",
     "test-app": "ng test test-app"
   },
   "dependencies": {

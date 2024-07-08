@@ -10,7 +10,7 @@
 - `@MockDelete(path: string, status: number)`
 - `@MockPathParam(name: string, transform?: (v: any) => any)`
 - `@MockQueryParam(name: string, options?: MockParamOptions)`
-- `@MockBodyParam(name: string)`
+- `@MockBodyParam()`
 - `@MockHttpReq()` 
 
 
