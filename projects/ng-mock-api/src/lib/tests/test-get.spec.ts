@@ -1,8 +1,8 @@
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpStatusCode, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { Injectable, numberAttribute } from "@angular/core";
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of } from 'rxjs';
-import { MockApi, MockGet, MockPathParam, MockQueryParam, MockServerException, mockApiInterceptor } from '..';
+import { MockApi, MockGet, MockPathParam, MockQueryParam, mockApiInterceptor } from '..';
 import { expect, it, describe, beforeEach } from 'vitest';
 
 @Injectable({ providedIn: 'root' })
@@ -21,7 +21,7 @@ export class TestMockApiGet {
         if (id > 100) {
             return { status: 'ok' }
         } else {
-            throw new MockServerException({ statusCode: 400, message: 'Bad Request' })
+            throw new HttpErrorResponse({ status: HttpStatusCode.BadRequest, statusText: 'Bad Request' })
         }
     }
 

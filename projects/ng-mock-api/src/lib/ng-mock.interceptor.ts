@@ -1,10 +1,9 @@
-import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, makeEnvironmentProviders } from '@angular/core';
 import { match } from 'path-to-regexp';
-import { Observable, from, map, of } from 'rxjs';
+import { Observable, from, map, of, switchMap } from 'rxjs';
 import { MethodPoolType, methodPool } from './helpers';
 import { PARAMS_METADATA_KEY, ParamMetdata } from './ng-mock.decorator';
-import { MockServerException } from './ng-mock.server-exception';
 import { MockHttpRequest } from './ng-mock.http-request';
 
 @Injectable()
@@ -41,10 +40,13 @@ function matchReqUrlWithMockApi(req: HttpRequest<unknown>, next: HttpHandlerFn) 
     return response ?? next(req)
 }
 
+
+
 function matchUrlToMethod(req: HttpRequest<any>) {
 
     let foundMethod: MethodPoolType | null = null;
     const methods = methodPool.filter(mp => mp.method === req.method)
+
     let pathParams: any = {}
 
     for (const method of methods) {
@@ -101,34 +103,25 @@ function callTargetFn(method: MethodPoolType, fnParams: any[]) {
         instance = inject(method.classTarget)
     } catch { }
 
-    let result: any;
 
-    let statusText = ''
-    try {
-        result = instance[method.propertyKey](...fnParams)
-    } catch (e) {
-        if (e instanceof MockServerException) {
-            status = e.statusCode
-            statusText = e.message
-        }
-    }
-
-    const responseObs = result instanceof Promise
-        ? from(result)
-        : result instanceof Observable
-            ? result
-            : of(result)
-
-    const response = responseObs
+    return of(true)
+        .pipe(
+            switchMap(
+                () => {
+                    const rawResult = instance[method.propertyKey](...fnParams)
+                    const wrappedResult = rawResult instanceof Promise
+                        ? from(rawResult)
+                        : rawResult instanceof Observable
+                            ? rawResult
+                            : of(rawResult)
+                    return wrappedResult
+                }
+            ),
+        )
         .pipe(
             map(body => {
-                if (status < 400) {
-                    return new HttpResponse({ body, status })
-                } else {
-                    throw new HttpErrorResponse({ status, statusText })
-                }
+                return new HttpResponse({ body, status })
             })
         )
 
-    return response
 }

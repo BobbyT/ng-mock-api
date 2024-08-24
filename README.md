@@ -78,7 +78,7 @@ export class MockRightsApi {
 
     @MockGet('', 204)
     getRights() {
-        throw new MockServerException({ statusCode: 404, message: 'Not Found' })
+        throw new HttpErrorResponse({ status: HttpStatusCode.NotFound, statusText: 'Not Found' })
     }
 
 }

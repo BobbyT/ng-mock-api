@@ -1,7 +1,7 @@
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpStatusCode } from "@angular/common/http";
 import { Injectable, inject, numberAttribute } from "@angular/core";
 import { firstValueFrom } from "rxjs";
-import { MockApi, MockHttpRequest, MockGet, MockHttpReq, MockPathParam, MockServerException } from "ng-mock-api";
+import { MockApi, MockHttpRequest, MockGet, MockHttpReq, MockPathParam } from "ng-mock-api";
 
 
 // injected instance call
@@ -52,7 +52,7 @@ export class MockRightsApi {
 
     @MockGet('', 204)
     getRights() {
-        throw new MockServerException({ statusCode: 404, message: 'Not Found' })
+        throw new HttpErrorResponse({ status: HttpStatusCode.NotFound, statusText: 'Not Found' })
     }
 
 }
