@@ -3,6 +3,7 @@ import { Injectable, numberAttribute } from "@angular/core";
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of } from 'rxjs';
 import { MockApi, MockGet, MockPathParam, MockQueryParam, MockServerException, mockApiInterceptor } from '..';
+import { expect, it, describe, beforeEach } from 'vitest';
 
 @Injectable({ providedIn: 'root' })
 @MockApi('/api/test-get/:id')
